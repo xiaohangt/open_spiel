@@ -311,7 +311,6 @@ class PSRO(object):
                 br_policies.append(br_policy)
                 br_policies_probs.append(probs[i])
                 br_indices.append(available_brs[player][i])
-
         assert len(br_policies_probs) == len(br_policies)
 
         norm_br_policies_probs = [float(i) / sum(br_policies_probs) for i in br_policies_probs]
@@ -331,8 +330,8 @@ class PSRO(object):
 
         # update policy for children
         # just need new available brs which only change for current player
-        new_available_brs_for_player = []
         for action in legal_actions:
+            new_available_brs_for_player = []
             for i in range(len(br_policies)):
                 br_policy = br_policies[i]
                 if br_policy[action] == 1:
@@ -367,5 +366,5 @@ class PSRO(object):
             pyspiel.create_matrix_game(emperical_game_matrix, -emperical_game_matrix))
         norm_pos1 = abs(nash_prob_1) / sum(abs(nash_prob_1))
         norm_pos2 = abs(nash_prob_2) / sum(abs(nash_prob_2))
-        self._br_list[1] = np.squeeze(array(norm_pos1)).tolist()
-        self._br_list[3] = np.squeeze(array(norm_pos2)).tolist()
+        self._br_list[1] = np.squeeze(array(norm_pos1), axis=1).tolist()
+        self._br_list[3] = np.squeeze(array(norm_pos2), axis=1).tolist()
