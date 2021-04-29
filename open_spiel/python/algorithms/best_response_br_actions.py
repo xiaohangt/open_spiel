@@ -39,6 +39,8 @@ def _memoize_method(method):
     def wrap(self, arg):
         key = str(arg)
         try:
+            # temporary hack/fix to make BRs work with games whose `str()` has imperfect recall (and/or is otherwise not a perfect representation of state)
+            # probably can revert back once the alternate BR mentioned in https://github.com/deepmind/open_spiel/issues/565#issuecomment-828570794 is in.
             key = arg.history_str()
         except Exception as e:
             pass
