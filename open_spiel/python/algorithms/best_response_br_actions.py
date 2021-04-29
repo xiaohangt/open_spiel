@@ -38,6 +38,12 @@ def _memoize_method(method):
 
     def wrap(self, arg):
         key = str(arg)
+        try:
+            # temporary hack/fix to make BRs work with games whose `str()` has imperfect recall (and/or is otherwise not a perfect representation of state)
+            # probably can revert back once the alternate BR mentioned in https://github.com/deepmind/open_spiel/issues/565#issuecomment-828570794 is in.
+            key = arg.history_str()
+        except Exception as e:
+            pass
         cache = vars(self).setdefault(cache_name, {})
         if key not in cache:
             cache[key] = method(self, arg)
@@ -109,20 +115,11 @@ class BestResponsePolicy(pyspiel_policy.Policy):
             # hence return probability 1.0 for every action.
 
             br_policies = []
-            for br in self._br_list:
-                try:
-                    br_policy = _policy_dict_at_state(br[state.current_player()], state)
-                    # br_policy = br[state.current_player()][state]
-                    br_policies.append(br_policy)
-                except KeyError as err:
-                    # print(f"player: {state.current_player()} transitions key error: {err}")
-                    # if there is a key error that's because the BR didn't see that state so nothing is
-                    # initialized at that infoset so we can just have an arbitrary policy
-                    br_policy = {}
-                    for action in state.legal_actions(state.current_player()):
-                        br_policy[action] = 0
-                    br_policy[0] = 1
-                    br_policies.append(br_policy)
+            for brs in self._br_list:
+                br_policy = _policy_dict_at_state(brs[state.current_player()], state)
+                # br_policy = br[state.current_player()][state]
+                br_policies.append(br_policy)
+
             # br_policies = [_policy_dict_at_state(br[state.current_player()], state) for br in self._br_list]
             trans = []
             for action in state.legal_actions():
@@ -135,7 +132,19 @@ class BestResponsePolicy(pyspiel_policy.Policy):
         elif state.is_chance_node():
             return state.chance_outcomes()
         else:
-            return list(self._policy.action_probabilities(state).items())
+            br_policies = []
+            for brs in self._br_list:
+                br_policy = _policy_dict_at_state(brs[state.current_player()], state)
+                br_policies.append(br_policy)
+            trans = []
+            for action in state.legal_actions():
+                for br in br_policies:
+                    if br[action] == 1:
+                        trans.append(action)
+            trans = list(set(trans))
+            policy_action_probs = list(self._policy.action_probabilities(state).items())
+            assert all(a in trans or p==0 for a,p in policy_action_probs), f'policy_action_probs={policy_action_probs}, trans={trans}, state={state}, history={state.history_str()}'
+            return [(a,p) for a,p in policy_action_probs if a in trans]
 
     @_memoize_method
     def value(self, state):
@@ -219,4 +228,4 @@ class BestResponsePolicy(pyspiel_policy.Policy):
     """
         if player_id is None:
             player_id = state.current_player()
-        return {self.best_response_action(state.information_state_string(player_id), state): 1}
+        return {self.best_response_action(state): 1}
