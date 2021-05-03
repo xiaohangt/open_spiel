@@ -208,7 +208,12 @@ std::vector<std::pair<std::unique_ptr<State>, double>> DecisionNodes(
     // this is fine for now.
     std::vector<std::pair<std::unique_ptr<State>, double>> children =
         DecisionNodes(*child, best_responder, policy);
-    const double policy_prob = GetProb(actions_and_probs, action);
+    double policy_prob = GetProb(actions_and_probs, action);
+
+    // clip anything just below zero due to float point precision
+    if (policy_prob <= 0 and policy_prob > -0.00001) {
+        policy_prob = 0.0;
+    }
     SPIEL_CHECK_GE(policy_prob, 0);
     for (auto& [state, prob] : children) {
       states_and_probs.push_back(
