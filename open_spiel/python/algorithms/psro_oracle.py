@@ -8,8 +8,10 @@ import numpy as np
 
 from open_spiel.python import policy
 import pyspiel
+from open_spiel.python.algorithms import best_response
 from open_spiel.python.algorithms import exploitability
 from open_spiel.python.algorithms import lp_solver
+from open_spiel.python.algorithms import policy_aggregator
 from numpy import array
 
 """
@@ -46,7 +48,8 @@ def _full_best_response_policy(br_infoset_dict):
         br_action = br_infoset_dict[infostate_key]
         ap_list = []
         for action in state.legal_actions():
-            ap_list.append((action, 1.0 if action == br_action else 0.0))
+            ap_list.append((action, 1 - 0.00001*(len(state.legal_actions())-1) if action == br_action else 0.00001))
+            # ap_list.append((action, 1 if action==br_action else 0))
         return ap_list
 
     return wrap
@@ -176,8 +179,12 @@ def fictitious_play(payoffs, iters=2000, verbose=False):
 def _get_br_to_policy(game, policy):
     brs = []
     for i in range(2):
-        br_info = exploitability.best_response(game, policy, i)
-        full_br_policy = _full_best_response_policy(br_info["best_response_action"])
+        # br_info = exploitability.best_response(game, policy, i)
+        # full_br_policy = _full_best_response_policy(br_info["best_response_action"])
+        br = best_response.BestResponsePolicy(game, i, policy, cut_threshold=-1)
+        for infostate in set(br.infosets):
+            br.best_response_action(infostate)
+        full_br_policy = _full_best_response_policy(br.cache_best_response_action)
         brs.append(full_br_policy)
     return brs
 
@@ -215,9 +222,25 @@ class PSRO(object):
     def iteration(self):
         self._add_brs_to_current_policy()
         self._get_new_meta_nash_probs()
-        self._update_policy(self._root_node, [[i for i in range(len(self._br_list[0]))],
-                                              [i for i in range(len(self._br_list[2]))]])
+        # self._update_policy(self._root_node, [[i for i in range(len(self._br_list[0]))],
+                                            #   [i for i in range(len(self._br_list[2]))]])
+        self._current_policy = policy_aggregator.PolicyAggregator(self._game).aggregate(
+            [0,1],
+            [[policy.tabular_policy_from_callable(self._game, x, [0]) for x in self._br_list[0]], [policy.tabular_policy_from_callable(self._game, x, [1]) for x in self._br_list[2]]],
+            [self._br_list[1], self._br_list[3]]
+        ).to_tabular()
+
+        self._noisify()
         self._iterations += 1
+
+    def _noisify(self):
+        for info_state, info_state_node in self._info_state_nodes.items():
+            for a in info_state_node.legal_actions:
+                if self._current_policy.policy_for_key(info_state)[a] == 0:
+                    self._current_policy.policy_for_key(info_state)[a] = 0.0001
+            denom = sum(self._current_policy.policy_for_key(info_state))
+            for a in info_state_node.legal_actions:
+                self._current_policy.policy_for_key(info_state)[a] /= denom
 
     def _initialize_info_state_nodes(self, state):
         """Initializes info_state_nodes.
@@ -295,22 +318,23 @@ class PSRO(object):
         br_indices = []
         for i in range(len(brs)):
             br = brs[i]
-            try:
-                br_policy = _policy_dict_at_state(br, state)
-                br_policies.append(br_policy)
-                br_policies_probs.append(probs[i])
-                br_indices.append(available_brs[player][i])
-            except KeyError as err:
-                # print(f"player: {player} key error: {err}")
-                # if there is a key error that's because the BR didn't see that state so nothing is
-                # initialized at that infoset so we can just have an arbitrary policy
-                br_policy = {}
-                for action in state.legal_actions(player):
-                    br_policy[action] = 0
-                br_policy[0] = 1
-                br_policies.append(br_policy)
-                br_policies_probs.append(probs[i])
-                br_indices.append(available_brs[player][i])
+            # try:
+            br_policy = _policy_dict_at_state(br, state)
+            br_policies.append(br_policy)
+            br_policies_probs.append(probs[i])
+            br_indices.append(available_brs[player][i])
+            # except KeyError as err:
+            #     # print(f"player: {player} key error: {err}")
+            #     # if there is a key error that's because the BR didn't see that state so nothing is
+            #     # initialized at that infoset so we can just have an arbitrary policy
+            #     br_policy = {}
+            #     for action in state.legal_actions(player):
+            #         br_policy[action] = 0
+            #     br_policy[0] = 1
+            #     br_policies.append(br_policy)
+            #     br_policies_probs.append(probs[i])
+            #     br_indices.append(available_brs[player][i])
+            #     raise err
         assert len(br_policies_probs) == len(br_policies)
 
         norm_br_policies_probs = [float(i) / sum(br_policies_probs) for i in br_policies_probs]
@@ -324,9 +348,16 @@ class PSRO(object):
                 action_prob = 0
                 for i in range(len(br_policies)):
                     br_policy = br_policies[i]
-                    if br_policy[action] == 1:
+                    if br_policy[action] > 0.99:
                         action_prob += norm_br_policies_probs[i]
                 state_policy[action] = action_prob
+
+        # for action in legal_actions:
+        #     if state_policy[action] == 0:
+        #         state_policy[action] = 0.0001
+        # denom = sum(state_policy)
+        # for action in legal_actions:
+        #     state_policy[action]/=denom
 
         # update policy for children
         # just need new available brs which only change for current player
@@ -334,9 +365,9 @@ class PSRO(object):
             new_available_brs_for_player = []
             for i in range(len(br_policies)):
                 br_policy = br_policies[i]
-                if br_policy[action] == 1:
+                if br_policy[action] > 0.99:
                     new_available_brs_for_player.append(br_indices[i])
-            new_available_brs = available_brs.copy()
+            new_available_brs = [[x for x in r] for r in available_brs]
             new_available_brs[player] = new_available_brs_for_player
             self._update_policy(state.child(action), new_available_brs)
 
@@ -362,9 +393,12 @@ class PSRO(object):
                 avg_return = sample_episodes([row_strat, col_strat], self._num_episodes, self._game)
                 # avg return array of payoffs for each player, since zero sum, just keep track of row player (player 0)
                 emperical_game_matrix[i, j] = avg_return[0]
-        nash_prob_1, nash_prob_2, _, _ = lp_solver.solve_zero_sum_matrix_game(
+        nash_prob_1, nash_prob_2, xx, yy = lp_solver.solve_zero_sum_matrix_game(
             pyspiel.create_matrix_game(emperical_game_matrix, -emperical_game_matrix))
         norm_pos1 = abs(nash_prob_1) / sum(abs(nash_prob_1))
         norm_pos2 = abs(nash_prob_2) / sum(abs(nash_prob_2))
+        # print(xx, yy, nash_prob_1, nash_prob_2)
+        # print(array(norm_pos1), array(norm_pos2), 'before squeeze')
         self._br_list[1] = np.squeeze(array(norm_pos1), axis=1).tolist()
         self._br_list[3] = np.squeeze(array(norm_pos2), axis=1).tolist()
+        # print(self._br_list[1], self._br_list[3], 'after squeeze')

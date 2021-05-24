@@ -57,6 +57,7 @@ EXPECTED_GAMES = set([
     "laser_tag",
     "lewis_signaling",
     "leduc_poker",
+    "leduc_poker_dummy",
     "liars_dice",
     "markov_soccer",
     "matching_pennies_3p",

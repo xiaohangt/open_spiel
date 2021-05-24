@@ -69,6 +69,8 @@ set(GAME_SOURCES
   laser_tag.h
   leduc_poker.cc
   leduc_poker.h
+  leduc_poker_dummy.cc
+  leduc_poker_dummy.h
   lewis_signaling.cc
   lewis_signaling.h
   liars_dice.cc
@@ -124,8 +126,6 @@ set(GAME_SOURCES
   trade_comm.h
   y.cc
   y.h
-  k_gmp.cc
-  k_gmp.h
 )
 
 if (${BUILD_WITH_HANABI})
@@ -448,7 +448,3 @@ endif()
 add_executable(y_test y_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(y_test y_test)
-
-add_executable(k_gmp_test k_gmp_test.cc ${OPEN_SPIEL_OBJECTS}
-        $<TARGET_OBJECTS:tests>)
-add_test(k_gmp_test k_gmp_test)
