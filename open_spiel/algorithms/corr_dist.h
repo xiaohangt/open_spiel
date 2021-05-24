@@ -143,13 +143,36 @@ double AFCCEDist(const Game& game, CorrDistConfig config,
 double CEDist(const Game& game, const NormalFormCorrelationDevice& mu);
 double CCEDist(const Game& game, const NormalFormCorrelationDevice& mu);
 
+struct CorrDistInfo {
+  double dist_value;
+
+  // One per player.
+  std::vector<double> on_policy_values;
+  std::vector<double> best_response_values;
+  std::vector<double> deviation_incentives;
+  std::vector<TabularPolicy> best_response_policies;
+
+  // Several per player. Only used in the CE dist case.
+  std::vector<std::vector<TabularPolicy>> conditional_best_response_policies;
+};
+
 // Distance to coarse-correlated in an extensive-form game. Builds a simpler
 // auxiliary game similar to the *FCCE where there is one chance node that
 // determines which policies the opponents follow (never revealed). Note that
-// the policies in this correlation device *can* be mixed.
-double CCEDist(const Game& game, const CorrelationDevice& mu);
+// the policies in this correlation device *can* be mixed. If values is
+// non-null, then it is filled with the deviation incentive of each player.
+CorrDistInfo CCEDist(const Game& game, const CorrelationDevice& mu);
+CorrDistInfo CCEDist(const Game& game, const CorrelationDevice& mu, int player);
 
-// TODO(author5): provide a similar function CEDist for extensive-form games.
+// Distance to a correlated equilibrium in an extensive-form game. Builds a
+// simpler auxiliary game similar to the *FCE ones where there is a chance node
+// that determines the joint recommendation strategies. The correlation device
+// must be a distribution over deterministic policies; if you have distribution
+// over mixed policies, then first convert the correlation device using the
+// helper functions DeterminizeCorrDev or SampledDeterminizeCorrDev in
+// corr_dev_builder.h. If values is non-null, then it is filled with the
+// deviation incentive of each player.
+CorrDistInfo CEDist(const Game& game, const CorrelationDevice& mu);
 
 }  // namespace algorithms
 }  // namespace open_spiel

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "open_spiel/abseil-cpp/absl/algorithm/container.h"
+#include "open_spiel/abseil-cpp/absl/strings/match.h"
 #include "open_spiel/abseil-cpp/absl/strings/str_cat.h"
 #include "open_spiel/abseil-cpp/absl/strings/str_format.h"
 #include "open_spiel/abseil-cpp/absl/types/optional.h"
@@ -103,7 +104,8 @@ std::string FormatDouble(double value) {
   // the .0 if necessary (to clarify that it's a double value).
   std::string double_str = absl::StrFormat("%.15f", value);
   size_t idx = double_str.find('.');
-  if (double_str.find('.') == std::string::npos) {
+
+  if (double_str.find('.') == std::string::npos) {  // NOLINT
     absl::StrAppend(&double_str, ".0");
   } else {
     // Remove the extra trailing zeros, if there are any.
@@ -115,7 +117,9 @@ std::string FormatDouble(double value) {
 }
 
 void SpielDefaultErrorHandler(const std::string& error_msg) {
-  std::cerr << "Spiel Fatal Error: " << error_msg << std::endl << std::endl;
+  std::cerr << "Spiel Fatal Error: " << error_msg << std::endl
+            << std::endl
+            << std::flush;
   std::exit(1);
 }
 
@@ -137,11 +141,15 @@ std::ostream& operator<<(std::ostream& stream, const absl::nullopt_t& v) {
 }
 
 void Normalize(absl::Span<double> weights) {
+  SPIEL_CHECK_FALSE(weights.empty());
   const double normalizer = absl::c_accumulate(weights, 0.);
+  SPIEL_CHECK_FALSE(std::isnan(normalizer));
   const double uniform_prob = 1.0 / weights.size();
   absl::c_for_each(weights, [&](double& w) {
     w = (normalizer == 0.0 ? uniform_prob : w / normalizer);
   });
 }
+
+std::string BoolToStr(bool b) { return b ? "true" : "false"; }
 
 }  // namespace open_spiel

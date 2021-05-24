@@ -24,7 +24,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 
-from open_spiel.python.games import tic_tac_toe
+from open_spiel.python import games  # pylint: disable=unused-import
 import pyspiel
 from open_spiel.python.utils import file_utils
 
@@ -145,10 +145,11 @@ class GamesSimTest(parameterized.TestCase):
         state.apply_action(action)
       elif state.is_simultaneous_node():
         # Simultaneous node: sample actions for all players
-        chosen_actions = [
-            np.random.choice(state.legal_actions(pid))
-            for pid in range(game.num_players())
-        ]
+        chosen_actions = []
+        for pid in range(game.num_players()):
+          legal_actions = state.legal_actions(pid)
+          action = 0 if not legal_actions else np.random.choice(legal_actions)
+          chosen_actions.append(action)
         # Apply the joint action and test cloning states.
         self.apply_action_test_clone(state, chosen_actions)
       else:
@@ -183,19 +184,23 @@ class GamesSimTest(parameterized.TestCase):
           "Sim of game {} terminated after maximum number of actions {}".format(
               game, MAX_ACTIONS_PER_GAME))
 
-  @parameterized.parameters(*SPIEL_LOADABLE_GAMES_LIST)
+  @parameterized.named_parameters((game_info.short_name, game_info)
+                                  for game_info in SPIEL_LOADABLE_GAMES_LIST)
   def test_game_sim(self, game_info):
     game = pyspiel.load_game(game_info.short_name)
     self.assertLessEqual(game_info.min_num_players, game.num_players())
     self.assertLessEqual(game.num_players(), game_info.max_num_players)
     self.sim_game(game)
 
-  @parameterized.parameters(*SPIEL_SIMULTANEOUS_GAMES_LIST)
+  @parameterized.named_parameters(
+      (game_info.short_name, game_info)
+      for game_info in SPIEL_SIMULTANEOUS_GAMES_LIST)
   def test_simultaneous_game_as_turn_based(self, game_info):
     converted_game = pyspiel.load_game_as_turn_based(game_info.short_name)
     self.sim_game(converted_game)
 
-  @parameterized.parameters(*SPIEL_MULTIPLAYER_GAMES_LIST)
+  @parameterized.named_parameters((f"{p}p_{g.short_name}", g, p)
+                                  for g, p in SPIEL_MULTIPLAYER_GAMES_LIST)
   def test_multiplayer_game(self, game_info, num_players):
     game = pyspiel.load_game(game_info.short_name,
                              {"players": pyspiel.GameParameter(num_players)})
@@ -210,17 +215,6 @@ class GamesSimTest(parameterized.TestCase):
     # make a smaller lower win score
     game = pyspiel.load_game("pig(players=2,winscore=15)")
     self.sim_game(game)
-
-  def test_python_tic_tac_toe(self):
-    # run this test to a Python-only game
-    game = tic_tac_toe.TicTacToeGame()
-    for _ in range(0, 100):
-      # cannot use pyspiel's serialization since the python-only games don't
-      # implement them
-      self.sim_game(
-          game,
-          check_pyspiel_serialization=False,
-          check_pickle_serialization=True)
 
   def test_efg_game(self):
     game = pyspiel.load_efg_game(pyspiel.get_sample_efg_data())
@@ -267,6 +261,35 @@ class GamesSimTest(parameterized.TestCase):
     self.assertEqual(action, action2)
     action3 = state.translate_action(0, 0, True)  # 0->2, 0->1
     self.assertEqual(action3, 0)
+
+  def test_backgammon_checker_moves_with_hit_info(self):
+    game = pyspiel.load_game("backgammon")
+    state = game.new_initial_state()
+    while not state.is_terminal():
+      if state.is_chance_node():
+        outcomes_with_probs = state.chance_outcomes()
+        action_list, prob_list = zip(*outcomes_with_probs)
+        action = np.random.choice(action_list, p=prob_list)
+        state.apply_action(action)
+      else:
+        legal_actions = state.legal_actions()
+        player = state.current_player()
+        for action in legal_actions:
+          action_str = state.action_to_string(player, action)
+          checker_moves = (
+              state.augment_with_hit_info(
+                  player, state.spiel_move_to_checker_moves(player, action)))
+          if checker_moves[0].hit or checker_moves[1].hit:
+            self.assertGreaterEqual(action_str.find("*"), 0)
+          else:
+            self.assertLess(action_str.find("*"), 0)
+          if action_str.find("*") > 0:
+            self.assertTrue(checker_moves[0].hit or checker_moves[1].hit)
+          else:
+            self.assertTrue(not checker_moves[0].hit and
+                            not checker_moves[1].hit)
+        action = np.random.choice(legal_actions)
+        state.apply_action(action)
 
 
 def main(_):

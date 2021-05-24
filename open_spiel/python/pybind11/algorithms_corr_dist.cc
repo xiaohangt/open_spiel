@@ -16,18 +16,14 @@
 
 // Python bindings for trajectories.h
 
+#include "open_spiel/algorithms/corr_dev_builder.h"
 #include "open_spiel/algorithms/corr_dist.h"
-#include "pybind11/include/pybind11/detail/common.h"
-#include "pybind11/include/pybind11/detail/descr.h"
-#include "pybind11/include/pybind11/functional.h"
-#include "pybind11/include/pybind11/numpy.h"
-#include "pybind11/include/pybind11/operators.h"
-#include "pybind11/include/pybind11/pybind11.h"
-#include "pybind11/include/pybind11/stl.h"
+#include "open_spiel/python/pybind11/pybind11.h"
 
 namespace open_spiel {
 namespace py = ::pybind11;
 
+using open_spiel::algorithms::CorrDistInfo;
 using open_spiel::algorithms::CorrelationDevice;
 
 void init_pyspiel_algorithms_corr_dist(py::module& m) {
@@ -35,12 +31,41 @@ void init_pyspiel_algorithms_corr_dist(py::module& m) {
         &open_spiel::algorithms::UniformCorrelationDevice,
         "Returns a uniform correlation device over a set of joint policies.");
 
-  // TODO(author5): expose the rest of the functions. I'd like to get rid of
-  // the unnecessary CorrDistConfig first.
+  m.def("sampled_determinize_corr_dev",
+        &open_spiel::algorithms::SampledDeterminizeCorrDev,
+        "Returns a correlation device over deterministic policies sampled from "
+        "a correlation device.");
+
+  m.def("determinize_corr_dev", &open_spiel::algorithms::DeterminizeCorrDev,
+        "Returns an exact correlation device over deterministic policies "
+        "equivalent to this correlation device. Warning: very costly!");
+
+  py::class_<CorrDistInfo> corr_dist_info(m, "CorrDistInfo");
+  corr_dist_info.def_readonly("dist_value", &CorrDistInfo::dist_value)
+      .def_readonly("on_policy_values", &CorrDistInfo::on_policy_values)
+      .def_readonly("best_response_values", &CorrDistInfo::best_response_values)
+      .def_readonly("deviation_incentives", &CorrDistInfo::deviation_incentives)
+      .def_readonly("best_response_policies",
+                    &CorrDistInfo::best_response_policies)
+      .def_readonly("conditional_best_response_policies",
+                    &CorrDistInfo::conditional_best_response_policies);
+
+  m.def("cce_dist",
+        py::overload_cast<const Game&, const CorrelationDevice&, int>(
+            &open_spiel::algorithms::CCEDist),
+        "Returns a player's distance to a coarse-correlated equilibrium.");
+
   m.def("cce_dist",
         py::overload_cast<const Game&, const CorrelationDevice&>(
             &open_spiel::algorithms::CCEDist),
         "Returns the distance to a coarse-correlated equilibrium.");
+
+  m.def("ce_dist",
+        py::overload_cast<const Game&, const CorrelationDevice&>(
+            &open_spiel::algorithms::CEDist),
+        "Returns the distance to a correlated equilibrium.");
+
+  // TODO(author5): expose the rest of the functions.
 }
 
 }  // namespace open_spiel

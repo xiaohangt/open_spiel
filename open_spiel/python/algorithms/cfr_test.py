@@ -122,7 +122,7 @@ class CFRTest(parameterized.TestCase, absltest.TestCase):
     np.testing.assert_allclose(
         average_policy_values, [-1 / 18, 1 / 18], atol=1e-3)
 
-  def test_cfr_cce_dist_goofspiel(self):
+  def test_cfr_cce_ce_dist_goofspiel(self):
     """Copy of the TestCCEDistCFRGoofSpiel in corr_dist_test.cc."""
     game = pyspiel.load_game(
         "turn_based_simultaneous_game(game=goofspiel(num_cards=3,points_order="
@@ -135,16 +135,34 @@ class CFRTest(parameterized.TestCase, absltest.TestCase):
         policies.append(
             policy.python_policy_to_pyspiel_policy(cfr_solver.current_policy()))
       mu = pyspiel.uniform_correlation_device(policies)
-      cce_dist1 = pyspiel.cce_dist(game, mu)
-      print("goofspiel, cce test num_iterations: {}, cce_dist: {}".format(
-          num_iterations, cce_dist1))
+      cce_dist_info = pyspiel.cce_dist(game, mu)
+      print("goofspiel, cce test num_iters: {}, cce_dist: {}, per player: {}"
+            .format(num_iterations, cce_dist_info.dist_value,
+                    cce_dist_info.deviation_incentives))
+      # Try converting one of the BR policies:
+      _ = policy.pyspiel_policy_to_python_policy(
+          game, cce_dist_info.best_response_policies[0])
+
       # Assemble the same correlation device manually, just as an example for
       # how to do non-uniform distributions of them and to test the python
       # bindings for lists of tuples works properly
       uniform_prob = 1.0 / len(policies)
       mu2 = [(uniform_prob, policy) for policy in policies]
-      cce_dist2 = pyspiel.cce_dist(game, mu2)
-      self.assertAlmostEqual(cce_dist1, cce_dist2)
+      cce_dist_info2 = pyspiel.cce_dist(game, mu2)
+      self.assertAlmostEqual(cce_dist_info2.dist_value,
+                             sum(cce_dist_info.deviation_incentives))
+      # Test the CEDist function too, why not. Disable the exact one, as it
+      # takes too long for a test.
+      # ce_dist_info = pyspiel.ce_dist(game, pyspiel.determinize_corr_dev(mu))
+      ce_dist_info = pyspiel.ce_dist(
+          game, pyspiel.sampled_determinize_corr_dev(mu, 100))
+      print("goofspiel, ce test num_iters: {}, ce_dist: {}, per player: {}"
+            .format(num_iterations, ce_dist_info.dist_value,
+                    ce_dist_info.deviation_incentives))
+      print("number of conditional best responses per player:")
+      for p in range(game.num_players()):
+        print("  player {}, num: {}".format(
+            p, len(ce_dist_info.conditional_best_response_policies[p])))
 
   @parameterized.parameters(
       list(itertools.product([True, False], [True, False], [True, False])))

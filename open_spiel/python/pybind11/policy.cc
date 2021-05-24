@@ -27,14 +27,8 @@
 #include "open_spiel/algorithms/outcome_sampling_mccfr.h"
 #include "open_spiel/algorithms/tabular_exploitability.h"
 #include "open_spiel/policy.h"
+#include "open_spiel/python/pybind11/pybind11.h"
 #include "open_spiel/spiel.h"
-#include "pybind11/include/pybind11/detail/common.h"
-#include "pybind11/include/pybind11/detail/descr.h"
-#include "pybind11/include/pybind11/functional.h"
-#include "pybind11/include/pybind11/numpy.h"
-#include "pybind11/include/pybind11/operators.h"
-#include "pybind11/include/pybind11/pybind11.h"
-#include "pybind11/include/pybind11/stl.h"
 
 namespace open_spiel {
 namespace {
@@ -100,6 +94,13 @@ void init_pyspiel_policy(py::module& m) {
       m, "UniformPolicy")
       .def(py::init<>())
       .def("get_state_policy", &open_spiel::UniformPolicy::GetStatePolicy);
+
+  py::class_<open_spiel::PreferredActionPolicy,
+             std::shared_ptr<open_spiel::PreferredActionPolicy>,
+             open_spiel::Policy>(m, "PreferredActionPolicy")
+      .def(py::init<const std::vector<Action>&>())
+      .def("get_state_policy",
+           &open_spiel::PreferredActionPolicy::GetStatePolicy);
 
   py::class_<open_spiel::algorithms::CFRSolver>(m, "CFRSolver")
       .def(py::init<const Game&>())
@@ -194,9 +195,27 @@ void init_pyspiel_policy(py::module& m) {
 
   m.def("expected_returns",
         py::overload_cast<const State&, const std::vector<const Policy*>&, int,
-                          bool>(&open_spiel::algorithms::ExpectedReturns),
+                          bool, float>(
+                              &open_spiel::algorithms::ExpectedReturns),
         "Computes the undiscounted expected returns from a depth-limited "
-        "search.");
+        "search.",
+        py::arg("state"),
+        py::arg("policies"),
+        py::arg("depth_limit"),
+        py::arg("use_infostate_get_policy"),
+        py::arg("prob_cut_threshold") = 0.0);
+
+  m.def("expected_returns",
+        py::overload_cast<const State&, const Policy&, int,
+                          bool, float>(
+                              &open_spiel::algorithms::ExpectedReturns),
+        "Computes the undiscounted expected returns from a depth-limited "
+        "search.",
+        py::arg("state"),
+        py::arg("joint_policy"),
+        py::arg("depth_limit"),
+        py::arg("use_infostate_get_policy"),
+        py::arg("prob_cut_threshold") = 0.0);
 
   m.def("exploitability",
         py::overload_cast<const Game&, const Policy&>(&Exploitability),
@@ -219,13 +238,18 @@ void init_pyspiel_policy(py::module& m) {
       "games, and raises a SpielFatalError if an incompatible game is passed "
       "to it.");
 
-  m.def("nash_conv", py::overload_cast<const Game&, const Policy&>(&NashConv),
-        "Returns the sum of the utility that a best responder wins when when "
-        "playing against 1) the player 0 policy contained in `policy` and 2) "
-        "the player 1 policy contained in `policy`."
-        "This only works for two player, zero- or constant-sum sequential "
-        "games, and raises a SpielFatalError if an incompatible game is passed "
-        "to it.");
+  m.def("nash_conv",
+        py::overload_cast<const Game&, const Policy&, bool>(&NashConv),
+        "Calculates a measure of how far the given policy is from a Nash "
+        "equilibrium by returning the sum of the improvements in the value "
+        "that each player could obtain by unilaterally changing their strategy "
+        "while the opposing player maintains their current strategy (which "
+        "for a Nash equilibrium, this value is 0). The third parameter is to "
+        "indicate whether to use the Policy::GetStatePolicy(const State&) "
+        "instead of Policy::GetStatePolicy(const std::string& info_state) for "
+        "computation of the on-policy expected values.",
+        py::arg("game"), py::arg("policy"),
+        py::arg("use_state_get_policy") = false);
 
   m.def(
       "nash_conv",
@@ -239,8 +263,13 @@ void init_pyspiel_policy(py::module& m) {
       "for a Nash equilibrium, this value is 0).");
 
   m.def("num_deterministic_policies",
-        open_spiel::algorithms::NumDeterministicPolicies,
+        &open_spiel::algorithms::NumDeterministicPolicies,
         "Returns number of determinstic policies in this game for a player, "
         "or -1 if there are more than 2^64 - 1 policies.");
+
+  m.def("to_joint_tabular_policy", &open_spiel::ToJointTabularPolicy,
+        "Returns a merged tabular policy from a list of TabularPolicy. The "
+        "second argument is a bool which, if true, checks that there is no "
+        "overlap among all the policies.");
 }
 }  // namespace open_spiel
