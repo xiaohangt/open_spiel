@@ -26,6 +26,7 @@ import numpy as np
 from open_spiel.python import policy
 import pyspiel
 
+from collections import defaultdict
 
 class PolicyFunction(policy.Policy):
   """A callable policy class."""
@@ -86,7 +87,15 @@ class PolicyFunction(policy.Policy):
       return result
     if player_id is None:
       player_id = state.current_player()
-    return self._policies[player_id][state_key]
+    try:
+      pol = self._policies[player_id][state_key]
+      # zeros = len([x for x in pol if pol[x]==0])
+      # pol = {a:(v*0.99999999 if v!=0 else 0.00000001/zeros) for a,v in pol.items()}
+      assert abs(sum(pol.values()) - 1) < 0.000001
+      return pol
+    except KeyError:
+      l = len(state.legal_actions())
+      return {a: 1/l for a in state.legal_actions()}
 
 
 class PolicyPool(object):
@@ -100,11 +109,11 @@ class PolicyPool(object):
     """
     self._policies = policies
 
-  def __call__(self, state, player):
-    return [
-        a.action_probabilities(state, player_id=player)
-        for a in self._policies[player]
-    ]
+  def __call__(self, state, player, policy_indices=None):
+    return {
+        i: a.action_probabilities(state, player_id=player)
+        for i,a in enumerate(self._policies[player]) if policy_indices is None or i in policy_indices
+    }
 
 
 class PolicyAggregator(object):
@@ -173,7 +182,7 @@ class PolicyAggregator(object):
 
     state = self._game.new_initial_state()
     my_reaches = weights[:]
-    self._rec_aggregate(pid, state, my_reaches)
+    self._rec_aggregate(pid, state, {i:x for i,x in enumerate(my_reaches[pid])})
 
     # Now normalize
     for key in self._policy:
@@ -187,8 +196,11 @@ class PolicyAggregator(object):
     return self._policy
 
   def _rec_aggregate(self, pid, state, my_reaches):
-    """Recursively traverse game tree to compute aggregate policy."""
-
+    """Recursively traverse game tree to compute aggregate policy.
+    my_reaches: {policy_index: probability}
+    """
+    if len(my_reaches) == 0:
+      return
     if state.is_terminal():
       return
     elif state.is_simultaneous_node():
@@ -215,39 +227,41 @@ class PolicyAggregator(object):
       outcomes, _ = zip(*state.chance_outcomes())
       for i in range(0, len(outcomes)):
         outcome = outcomes[i]
-        new_state = state.clone()
-        new_state.apply_action(outcome)
-        self._rec_aggregate(pid, new_state, my_reaches)
+        # new_state = state.clone()
+        # new_state.apply_action(outcome)
+        self._rec_aggregate(pid, state.child(outcome), my_reaches)
       return
     else:
       turn_player = state.current_player()
 
       state_key = self._state_key(state, turn_player)
-      legal_policies = self._policy_pool(state, turn_player)
+      legal_policies = self._policy_pool(state, turn_player, my_reaches)
       if pid == turn_player:
         # update the current node
         # will need the observation to query the policies
         if state not in self._policy:
           self._policy[state_key] = {}
 
-      used_moves = []
-      for k in range(len(legal_policies)):
-        used_moves += [a[0] for a in legal_policies[k].items()]
-      used_moves = np.unique(used_moves)
+      used_moves = set()
+      for i, legal_policy in legal_policies.items():
+        used_moves |= {a for a, p in legal_policy.items()}
+      # used_moves = np.unique(used_moves)
 
       for uid in used_moves:
-        new_reaches = np.copy(my_reaches)
+        # new_reaches = np.copy(my_reaches)
+        new_reaches = {i:p for i, p in my_reaches.items() if p > 0}
         if pid == turn_player:
-          for i in range(len(legal_policies)):
+          for i, legal_policy in legal_policies.items():
             # compute the new reach for each policy for this action
-            new_reaches[turn_player][i] *= legal_policies[i].get(uid, 0)
-            # add reach * prob(a) for this policy to the computed policy
-            if uid in self._policy[state_key].keys():
-              self._policy[state_key][uid] += new_reaches[turn_player][i]
-            else:
-              self._policy[state_key][uid] = new_reaches[turn_player][i]
+            if legal_policy.get(uid, 0) > 0:
+              new_reaches[i] *= legal_policy.get(uid, 0)
+              # add reach * prob(a) for this policy to the computed policy
+              if uid in self._policy[state_key].keys():
+                self._policy[state_key][uid] += new_reaches[i]
+              else:
+                self._policy[state_key][uid] = new_reaches[i]
 
         # recurse
-        new_state = state.clone()
-        new_state.apply_action(uid)
-        self._rec_aggregate(pid, new_state, new_reaches)
+        # new_state = state.clone()
+        # new_state.apply_action(uid)
+        self._rec_aggregate(pid, state.child(uid), new_reaches)

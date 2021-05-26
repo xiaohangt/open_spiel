@@ -184,8 +184,8 @@ def _get_br_to_policy(game, policy):
         br = best_response.BestResponsePolicy(game, i, policy, cut_threshold=-1)
         for infostate in set(br.infosets):
             br.best_response_action(infostate)
-        full_br_policy = _full_best_response_policy(br.cache_best_response_action)
-        brs.append(full_br_policy)
+        # full_br_policy = _full_best_response_policy(br.cache_best_response_action)
+        brs.append(br)
     return brs
 
 # Does extensive form version of double oracle algorithm
@@ -226,7 +226,8 @@ class PSRO(object):
                                             #   [i for i in range(len(self._br_list[2]))]])
         self._current_policy = policy_aggregator.PolicyAggregator(self._game).aggregate(
             [0,1],
-            [[policy.tabular_policy_from_callable(self._game, x, [0]) for x in self._br_list[0]], [policy.tabular_policy_from_callable(self._game, x, [1]) for x in self._br_list[2]]],
+            # [[policy.tabular_policy_from_callable(self._game, x, [0]) for x in self._br_list[0]], [policy.tabular_policy_from_callable(self._game, x, [1]) for x in self._br_list[2]]],
+            [self._br_list[0], self._br_list[2]],
             [self._br_list[1], self._br_list[3]]
         ).to_tabular()
 

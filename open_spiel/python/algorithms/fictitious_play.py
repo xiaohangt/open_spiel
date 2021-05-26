@@ -155,6 +155,8 @@ class XFPSolver(object):
     self._delta_tolerance = 1e-10
     self._average_policy_tables = []
 
+    self.num_infostates_expanded = 0
+
   def average_policy_tables(self):
     """Returns a dictionary of information state -> dict of action -> prob.
 
@@ -179,6 +181,7 @@ class XFPSolver(object):
       joint_policy = self.average_policy()
       br_info = exploitability.best_response(self._game,
                                              joint_policy.to_tabular(), i)
+      self.num_infostates_expanded += len(br_info['best_response_state_value'])
       full_br_policy = _full_best_response_policy(
           br_info["best_response_action"])
       self._best_responses[i] = full_br_policy
@@ -200,7 +203,7 @@ class XFPSolver(object):
   def _recursively_update_average_policies(self, state, avg_reach_probs,
                                            br_reach_probs):
     """Recursive implementation of the average strategy update."""
-
+    self.num_infostates_expanded += 1
     if state.is_terminal():
       return
     elif state.is_chance_node():

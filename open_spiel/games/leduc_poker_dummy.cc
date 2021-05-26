@@ -232,9 +232,26 @@ class LeducObserver : public Observer {
       }
       if (iig_obs_type_.perfect_recall) {
         // Betting Sequence (for the perfect recall case)
+        std::vector<int> round1infos;
+        std::vector<int> round2infos;
+        for(int i =0; i < state.round1_sequence_.size(); i++){
+          if(i%2 == player) {
+            round1infos.push_back(state.round1_sequence_[i]);
+          } else {
+            round1infos.push_back(state.round1_sequence_[i]%3);
+          }
+        }
+        for(int i =0; i < state.round2_sequence_.size(); i++){
+          if(i%2 == player) {
+            round2infos.push_back(state.round2_sequence_[i]);
+          } else {
+            round2infos.push_back(state.round2_sequence_[i]%3);
+          }
+        }
+
         absl::StrAppend(
-            &result, "[Round1: ", absl::StrJoin(state.round1_sequence_, " "),
-            "][Round2: ", absl::StrJoin(state.round2_sequence_, " "), "]");
+            &result, "[Round1: ", absl::StrJoin(round1infos, " "),
+            "][Round2: ", absl::StrJoin(round2infos, " "), "]");
       } else {
         // Pot contributions (imperfect recall)
         absl::StrAppend(&result, "[Ante: ", absl::StrJoin(state.ante_, " "),
@@ -354,7 +371,7 @@ void LeducDummyState::DoApplyAction(Action move) {
 
     if (move % 3 == ActionType::kFold) {
       SPIEL_CHECK_NE(cur_player_, kChancePlayerId);
-      SequenceAppendMove(ActionType::kFold);
+      SequenceAppendMove(move);
 
       // Player is now out.
       folded_[cur_player_] = true;
@@ -378,7 +395,7 @@ void LeducDummyState::DoApplyAction(Action move) {
       int amount = stakes_ - ante_[cur_player_];
       Ante(cur_player_, amount);
       num_calls_++;
-      SequenceAppendMove(ActionType::kCall);
+      SequenceAppendMove(move);
 
       if (IsTerminal()) {
         ResolveWinner();
@@ -406,7 +423,7 @@ void LeducDummyState::DoApplyAction(Action move) {
       Ante(cur_player_, raise_amount);
       num_raises_++;
       num_calls_ = 0;
-      SequenceAppendMove(ActionType::kRaise);
+      SequenceAppendMove(move);
 
       if (IsTerminal()) {
         ResolveWinner();
@@ -416,7 +433,7 @@ void LeducDummyState::DoApplyAction(Action move) {
       // Added by STEPHEN: higher moves are treated as fold actions
     } else if (move >= 3) {
       SPIEL_CHECK_NE(cur_player_, kChancePlayerId);
-      SequenceAppendMove(ActionType::kFold);
+      SequenceAppendMove(move);
 
       // Player is now out.
       folded_[cur_player_] = true;
