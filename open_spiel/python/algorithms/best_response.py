@@ -28,6 +28,7 @@ from open_spiel.python.algorithms import noisy_policy
 from open_spiel.python.algorithms import policy_utils
 import pyspiel
 
+import numpy as np
 
 def _memoize_method(method):
   """Memoize a single-arg instance method using an on-object cache."""
@@ -179,6 +180,23 @@ class BestResponsePolicy(openspiel_policy.Policy):
     return {
         self.best_response_action(state.information_state_string(player_id)): 1
     }
+
+
+class RandomBestResponsePolicy(BestResponsePolicy):
+  @_memoize_method
+  def best_response_action(self, infostate):
+    """Returns the best response for this information state."""
+    infoset = self.infosets[infostate]
+    # Get actions from the first (state, cf_prob) pair in the infoset list.
+    # Return the best action by counterfactual-reach-weighted state-value.
+    # This operation is done non-deterministically
+
+    legal_actions = infoset[0][0].legal_actions()
+    get_action_value = lambda a: sum(cf_p * self.q_value(s, a) for s, cf_p in infoset)
+    max_value = max(map(get_action_value, legal_actions))
+    legal_actions_with_max_value = filter(lambda a: np.isclose(get_action_value(a), max_value), legal_actions)
+
+    return np.random.choice(legal_actions_with_max_value)
 
 
 class CPPBestResponsePolicy(openspiel_policy.Policy):
