@@ -194,7 +194,7 @@ class RandomBestResponsePolicy(BestResponsePolicy):
     legal_actions = infoset[0][0].legal_actions()
     get_action_value = lambda a: sum(cf_p * self.q_value(s, a) for s, cf_p in infoset)
     max_value = max(map(get_action_value, legal_actions))
-    legal_actions_with_max_value = filter(lambda a: np.isclose(get_action_value(a), max_value), legal_actions)
+    legal_actions_with_max_value = list(filter(lambda a: np.isclose(get_action_value(a), max_value), legal_actions))
 
     return np.random.choice(legal_actions_with_max_value)
 
