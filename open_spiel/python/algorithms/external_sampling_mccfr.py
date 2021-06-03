@@ -39,6 +39,7 @@ class ExternalSamplingSolver(object):
     self._game = game
     self._infostates = {}  # infostate keys -> [regrets, avg strat]
     self._num_players = game.num_players()
+    self.num_infostates_expanded = 0
     # How to average the strategy. The 'simple' type does the averaging for
     # player i + 1 mod num_players on player i's regret update pass; in two
     # players this corresponds to the standard implementation (updating the
@@ -204,6 +205,7 @@ class ExternalSamplingSolver(object):
     if state.is_chance_node():
       outcomes, probs = zip(*state.chance_outcomes())
       outcome = np.random.choice(outcomes, p=probs)
+      self.num_infostates_expanded += 1
       return self._update_regrets(state.child(outcome), player)
 
     cur_player = state.current_player()
@@ -221,11 +223,13 @@ class ExternalSamplingSolver(object):
     if cur_player != player:
       # Sample at opponent node
       action_idx = np.random.choice(np.arange(num_legal_actions), p=policy)
+      self.num_infostates_expanded += 1
       value = self._update_regrets(
           state.child(legal_actions[action_idx]), player)
     else:
       # Walk over all actions at my node
       for action_idx in range(num_legal_actions):
+        self.num_infostates_expanded += 1
         child_values[action_idx] = self._update_regrets(
             state.child(legal_actions[action_idx]), player)
         value += policy[action_idx] * child_values[action_idx]
