@@ -170,6 +170,7 @@ class _CFRSolverBase(object):
     self._average_policy = self._current_policy.__copy__()
 
     self._info_state_nodes = {}
+    self.num_infostates_expanded = 0
     self._initialize_info_state_nodes(self._root_node)
 
     self._iteration = 0  # For possible linear-averaging.
@@ -187,6 +188,7 @@ class _CFRSolverBase(object):
       state: The current state in the tree walk. This should be the root node
         when we call this function from a CFR solver.
     """
+    self.num_infostates_expanded += 1
     if state.is_terminal():
       return
 
@@ -261,6 +263,7 @@ class _CFRSolverBase(object):
       The utility of `state` for all players, assuming all players follow the
       current policy defined by `self.Policy`.
     """
+    self.num_infostates_expanded += 1
     if state.is_terminal():
       return np.asarray(state.returns())
 
