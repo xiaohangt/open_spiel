@@ -123,7 +123,9 @@ std::vector<Action> PhantomTTTState::LegalActions() const {
 
   for (Action move = 0; move < kNumCells; ++move) {
     if (cur_view[move] == CellState::kEmpty) {
-      moves.push_back(move);
+      if (move != 0) {
+        moves.push_back(move);
+      }
     }
   }
 
