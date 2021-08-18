@@ -127,20 +127,20 @@ class RLEnvironmentTest(absltest.TestCase):
     env_kuhn2.reset()
 
     # Transfering states between identical games should work.
-    env_ttt1.set_state(env_ttt2.get_state)
-    env_ttt2.set_state(env_ttt1.get_state)
+    env_ttt1.set_state(env_ttt2.get_state())
+    env_ttt2.set_state(env_ttt1.get_state())
 
     # Transfering states between different games or games with different
     # parameters should fail.
     with self.assertRaises(AssertionError):
-      self.fail(env_ttt1.set_state(env_kuhn1.get_state))
+      self.fail(env_ttt1.set_state(env_kuhn1.get_state()))
     with self.assertRaises(AssertionError):
-      self.fail(env_kuhn1.set_state(env_ttt1.get_state))
+      self.fail(env_kuhn1.set_state(env_ttt1.get_state()))
 
     with self.assertRaises(AssertionError):
-      self.fail(env_kuhn1.set_state(env_kuhn2.get_state))
+      self.fail(env_kuhn1.set_state(env_kuhn2.get_state()))
     with self.assertRaises(AssertionError):
-      self.fail(env_kuhn2.set_state(env_kuhn1.get_state))
+      self.fail(env_kuhn2.set_state(env_kuhn1.get_state()))
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ import pyspiel
 def _get_subgames_states(state, all_states, depth_limit, depth,
                          include_terminals, include_chance_states,
                          include_mean_field_states, to_string,
-                         stop_if_encountered):
+                         stop_if_encountered, with_backtracking):
   """Extract non-chance states for a subgame into the all_states dict."""
   if state.is_terminal():
     if include_terminals:
@@ -60,14 +60,21 @@ def _get_subgames_states(state, all_states, depth_limit, depth,
     _get_subgames_states(state_for_search, all_states, depth_limit, depth + 1,
                          include_terminals, include_chance_states,
                          include_mean_field_states, to_string,
-                         stop_if_encountered)
+                         stop_if_encountered, with_backtracking)
   else:
+    player = state.current_player()
     for action in state.legal_actions():
-      state_for_search = state.child(action)
+      if with_backtracking:
+        state.apply_action(action)
+        state_for_search = state
+      else:
+        state_for_search = state.child(action)
       _get_subgames_states(state_for_search, all_states, depth_limit, depth + 1,
                            include_terminals, include_chance_states,
                            include_mean_field_states, to_string,
-                           stop_if_encountered)
+                           stop_if_encountered, with_backtracking)
+      if with_backtracking:
+        state_for_search.undo_action(player, action)
 
 
 def get_all_states(game,
@@ -76,7 +83,8 @@ def get_all_states(game,
                    include_chance_states=False,
                    include_mean_field_states=False,
                    to_string=lambda s: s.history_str(),
-                   stop_if_encountered=True):
+                   stop_if_encountered=True,
+                   with_backtracking=False):
   """Gets all states in the game, indexed by their string representation.
 
   For small games only! Useful for methods that solve the  games explicitly,
@@ -119,7 +127,9 @@ def get_all_states(game,
         include_chance_states=include_chance_states,
         include_mean_field_states=include_mean_field_states,
         to_string=to_string,
-        stop_if_encountered=stop_if_encountered)
+        stop_if_encountered=stop_if_encountered,
+        with_backtracking=with_backtracking
+    )
 
   if not all_states:
     raise ValueError("GetSubgameStates returned 0 states!")

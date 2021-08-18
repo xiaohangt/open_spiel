@@ -151,6 +151,7 @@ class Environment(object):
                chance_event_sampler=None,
                observation_type=None,
                include_full_state=False,
+               include_information_state_string=False,
                distribution=None,
                mfg_population=None,
                **kwargs):
@@ -172,6 +173,7 @@ class Environment(object):
     """
     self._chance_event_sampler = chance_event_sampler or ChanceEventSampler()
     self._include_full_state = include_full_state
+    self._include_information_state_string = include_information_state_string
     self._distribution = distribution
     self._mfg_population = mfg_population
 
@@ -247,9 +249,12 @@ class Environment(object):
       observations["info_state"].append(
           self._state.observation_tensor(player_id) if self._use_observation
           else self._state.information_state_tensor(player_id))
-
       observations["legal_actions"].append(self._state.legal_actions(player_id))
     observations["current_player"] = self._state.current_player()
+    if self._include_information_state_string:
+      observations['information_state_string'] = []
+      for player_id in range(self.num_players):
+        observations["information_state_string"].append(self._state.information_state_string(player_id))
     discounts = self._discounts
     if step_type == StepType.LAST:
       # When the game is in a terminal state set the discount to 0.
@@ -265,7 +270,7 @@ class Environment(object):
         discounts=discounts,
         step_type=step_type)
 
-  def step(self, actions):
+  def step(self, actions, post_action_callback=(lambda state: None)):
     """Updates the environment according to `actions` and returns a `TimeStep`.
 
     If the environment returned a `TimeStep` with `StepType.LAST` at the
@@ -300,7 +305,8 @@ class Environment(object):
       self._state.apply_action(actions[0])
     else:
       self._state.apply_actions(actions)
-    self._sample_external_events()
+    post_action_callback(self._state)
+    self._sample_external_events(post_action_callback)
 
     return self.get_time_step()
 
@@ -338,6 +344,10 @@ class Environment(object):
           else self._state.information_state_tensor(player_id))
       observations["legal_actions"].append(self._state.legal_actions(player_id))
     observations["current_player"] = self._state.current_player()
+    if self._include_information_state_string:
+      observations['information_state_string'] = []
+      for player_id in range(self.num_players):
+        observations["information_state_string"].append(self._state.information_state_string(player_id))
 
     if self._include_full_state:
       observations["serialized_state"] = pyspiel.serialize_game_and_state(
@@ -349,7 +359,7 @@ class Environment(object):
         discounts=None,
         step_type=StepType.FIRST)
 
-  def _sample_external_events(self):
+  def _sample_external_events(self, post_action_callback=(lambda state: None)):
     """Sample chance events until we get to a decision node."""
     while self._state.is_chance_node() or (self._state.current_player()
                                            == pyspiel.PlayerId.MEAN_FIELD):
@@ -363,6 +373,7 @@ class Environment(object):
             for str_state in dist_to_register
         ]
         self._state.update_distribution(dist)
+      #post_action_callback(self._state)
 
   def observation_spec(self):
     """Defines the observation per player provided by the environment.
@@ -449,5 +460,5 @@ class Environment(object):
     self._state = new_state
 
   @property
-  def get_state(self):
+  def state(self):
     return self._state
