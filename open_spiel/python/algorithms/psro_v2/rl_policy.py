@@ -67,6 +67,9 @@ def rl_policy_factory(rl_class):
       return time_step
 
     def action_probabilities(self, state, player_id=None):
+      if player_id is not None and player_id != state.current_player():
+        raise ValueError('heyo')
+        return {0:1}
       cur_player = state.current_player()
       legal_actions = state.legal_actions(cur_player)
 
@@ -74,9 +77,9 @@ def rl_policy_factory(rl_class):
       ) else rl_environment.StepType.MID
 
       self._obs["current_player"] = cur_player
-      self._obs["info_state"][cur_player] = (
-          state.information_state_tensor(cur_player))
-      self._obs["legal_actions"][cur_player] = legal_actions
+      for player in range(self.game.num_players()):
+        self._obs["info_state"][player] = state.information_state_tensor(player)
+        self._obs["legal_actions"][player] = state.legal_actions(player)
 
       # pylint: disable=protected-access
       rewards = state.rewards()

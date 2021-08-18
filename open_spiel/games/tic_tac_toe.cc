@@ -117,7 +117,7 @@ bool TicTacToeState::HasLine(Player player) const {
          (board_[2] == c && board_[4] == c && board_[6] == c);
 }
 
-bool TicTacToeState::IsFull() const { return num_moves_ == kNumCells; }
+bool TicTacToeState::IsFull() const { return num_moves_ == kNumCells-2; }
 
 TicTacToeState::TicTacToeState(std::shared_ptr<const Game> game) : State(game) {
   std::fill(begin(board_), end(board_), CellState::kEmpty);
