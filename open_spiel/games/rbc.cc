@@ -503,7 +503,7 @@ void RbcState::UndoAction(Player player, Action action) {
 bool RbcState::IsRepetitionDraw() const {
   const auto entry = repetitions_.find(Board().HashValue());
   SPIEL_CHECK_FALSE(entry == repetitions_.end());
-  return entry->second >= kNumRepetitionsToDraw;
+  return entry->second >= 10;
 }
 
 absl::optional<std::vector<double>> RbcState::MaybeFinalReturns() const {
