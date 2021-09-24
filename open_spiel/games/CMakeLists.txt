@@ -132,6 +132,8 @@ set(GAME_SOURCES
   trade_comm.h
   y.cc
   y.h
+  leduc_poker_10_card.cc
+  leduc_poker_10_card.h
 )
 
 if (${OPEN_SPIEL_BUILD_WITH_HANABI})

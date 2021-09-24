@@ -21,6 +21,7 @@ TODO(author2): Also include computation using the more efficient C++
 """
 
 import collections
+import random
 
 from open_spiel.python import policy as openspiel_policy
 from open_spiel.python.algorithms import get_all_states
@@ -28,6 +29,7 @@ from open_spiel.python.algorithms import noisy_policy
 from open_spiel.python.algorithms import policy_utils
 import pyspiel
 
+eps = 0.000000001
 
 def _memoize_method(method):
   """Memoize a single-arg instance method using an on-object cache."""
@@ -86,7 +88,7 @@ class BestResponsePolicy(openspiel_policy.Policy):
   """Computes the best response to a specified strategy."""
 
   def __init__(self, game, player_id, policy, root_state=None,
-               cut_threshold=0.0):
+               cut_threshold=0.0, add_noise=False):
     """Initializes the best-response calculation.
 
     Args:
@@ -105,6 +107,7 @@ class BestResponsePolicy(openspiel_policy.Policy):
       root_state = game.new_initial_state()
     self._root_state = root_state
     self.infosets = self.info_sets(root_state)
+    self._add_noise = add_noise
 
     self._cut_threshold = cut_threshold
 
@@ -138,15 +141,16 @@ class BestResponsePolicy(openspiel_policy.Policy):
   @_memoize_method
   def value(self, state):
     """Returns the value of the specified state to the best-responder."""
+    noise = random.random() * eps/2 - eps if self._add_noise else 0
     if state.is_terminal():
-      return state.player_return(self._player_id)
+      return state.player_return(self._player_id) + noise
     elif state.current_player() == self._player_id:
       action = self.best_response_action(
           state.information_state_string(self._player_id))
-      return self.q_value(state, action)
+      return self.q_value(state, action) + noise
     else:
       return sum(p * self.q_value(state, a) for a, p in self.transitions(state)
-                 if p > self._cut_threshold)
+                 if p > self._cut_threshold) + noise
 
   def q_value(self, state, action):
     """Returns the value of the (state, action) to the best-responder."""
