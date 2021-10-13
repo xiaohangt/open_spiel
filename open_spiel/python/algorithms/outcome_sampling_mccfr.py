@@ -49,14 +49,14 @@ class OutcomeSamplingSolver(mccfr.MCCFRSolverBase):
       self._episode(
           state, update_player, my_reach=1.0, opp_reach=1.0, sample_reach=1.0)
 
-  def _baseline(self, state, info_state, aidx):  # pylint: disable=unused-argument
+  def _baseline(self, state, cur_player, info_state, aidx):  # pylint: disable=unused-argument
     # Default to vanilla outcome sampling
     return 0
 
-  def _baseline_corrected_child_value(self, state, info_state, sampled_aidx,
+  def _baseline_corrected_child_value(self, state, cur_player, info_state, sampled_aidx,
                                       aidx, child_value, sample_prob):
     # Applies Eq. 9 of Schmid et al. '19
-    baseline = self._baseline(state, info_state, aidx)
+    baseline = self._baseline(state, cur_player, info_state, aidx)
     if aidx == sampled_aidx:
       return baseline + (child_value - baseline) / sample_prob
     else:
@@ -101,7 +101,8 @@ class OutcomeSamplingSolver(mccfr.MCCFRSolverBase):
     else:
       sample_policy = policy
     sampled_aidx = np.random.choice(range(num_legal_actions), p=sample_policy)
-    state.apply_action(legal_actions[sampled_aidx])
+    # state.apply_action(legal_actions[sampled_aidx])
+    child = state.child(legal_actions[sampled_aidx])
     if cur_player == update_player:
       new_my_reach = my_reach * policy[sampled_aidx]
       new_opp_reach = opp_reach
@@ -109,14 +110,14 @@ class OutcomeSamplingSolver(mccfr.MCCFRSolverBase):
       new_my_reach = my_reach
       new_opp_reach = opp_reach * policy[sampled_aidx]
     new_sample_reach = sample_reach * sample_policy[sampled_aidx]
-    child_value = self._episode(state, update_player, new_my_reach,
+    child_value = self._episode(child, update_player, new_my_reach,
                                 new_opp_reach, new_sample_reach)
-
+    # state.undo_action(cur_player, legal_actions[sampled_aidx])
     # Compute each of the child estimated values.
     child_values = np.zeros(num_legal_actions, dtype=np.float64)
     for aidx in range(num_legal_actions):
       child_values[aidx] = self._baseline_corrected_child_value(
-          state, infostate_info, sampled_aidx, aidx, child_value,
+          state, cur_player, infostate_info, sampled_aidx, aidx, child_value,
           sample_policy[aidx])
     value_estimate = 0
     for aidx in range(num_legal_actions):

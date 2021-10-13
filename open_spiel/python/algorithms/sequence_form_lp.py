@@ -138,7 +138,6 @@ def _construct_lps(state, infosets, infoset_actions, infoset_action_maps,
 
     new_parent_isa_keys = parent_isa_keys[:]
     new_parent_isa_keys[player] = isa_key
-
     new_state = state.child(action)
     _construct_lps(new_state, infosets, infoset_actions, infoset_action_maps,
                    chance_reach, lps, new_parent_is_keys, new_parent_isa_keys)

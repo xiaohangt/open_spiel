@@ -149,8 +149,4 @@ def get_all_states(game,
         stop_if_encountered=stop_if_encountered,
         with_backtracking=with_backtracking
     )
-
-  if not all_states:
-    raise ValueError("GetSubgameStates returned 0 states!")
-
   return all_states
