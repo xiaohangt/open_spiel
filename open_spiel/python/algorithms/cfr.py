@@ -170,6 +170,7 @@ class _CFRSolverBase(object):
     self._average_policy = self._current_policy.__copy__()
 
     self._info_state_nodes = {}
+    self.num_infostates_visited = 0
     self.num_infostates_expanded = 0
     self._initialize_info_state_nodes(self._root_node)
 
@@ -188,6 +189,8 @@ class _CFRSolverBase(object):
       state: The current state in the tree walk. This should be the root node
         when we call this function from a CFR solver.
     """
+    self.num_infostates_visited += 1
+
     if state.is_terminal():
       return
 
@@ -507,20 +510,3 @@ class CFRSolver(_CFRSolver):
         regret_matching_plus=False,
         alternating_updates=True,
         linear_averaging=False)
-
-
-class LCFRSolver(_CFRSolver):
-  """Implements the Linear Counterfactual Regret Minimization (LCFR) algorithm.
-
-  See https://poker.cs.ualberta.ca/publications/NIPS07-cfr.pdf
-
-  NOTE: We use alternating updates (which was not the case in the original
-  paper) because it has been proved to be far more efficient.
-  """
-
-  def __init__(self, game):
-    super(LCFRSolver, self).__init__(
-        game,
-        regret_matching_plus=False,
-        alternating_updates=True,
-        linear_averaging=True)

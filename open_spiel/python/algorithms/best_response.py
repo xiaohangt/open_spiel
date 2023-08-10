@@ -108,7 +108,7 @@ class BestResponsePolicy(openspiel_policy.Policy):
     self._root_state = root_state
     self.infosets = self.info_sets(root_state)
     self._add_noise = add_noise
-
+    self.expanded_infostates = 0
     self._cut_threshold = cut_threshold
 
   def info_sets(self, state):
@@ -141,6 +141,7 @@ class BestResponsePolicy(openspiel_policy.Policy):
   @_memoize_method
   def value(self, state):
     """Returns the value of the specified state to the best-responder."""
+    self.expanded_infostates += 1
     noise = random.random() * eps/2 - eps if self._add_noise else 0
     if state.is_terminal():
       return state.player_return(self._player_id) + noise
