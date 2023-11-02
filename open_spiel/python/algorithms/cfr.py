@@ -172,6 +172,9 @@ class _CFRSolverBase(object):
     self._info_state_nodes = {}
     self.num_infostates_visited = 0
     self.num_infostates_expanded = 0
+    self.all_info_states = set()
+    self.max_act = 0
+
     self._initialize_info_state_nodes(self._root_node)
 
     self._iteration = 0  # For possible linear-averaging.
@@ -284,6 +287,8 @@ class _CFRSolverBase(object):
 
     current_player = state.current_player()
     info_state = state.information_state_string(current_player)
+    self.all_info_states.add(info_state)
+    self.max_act = max(self.max_act, len(state.legal_actions()))
 
     # No need to continue on this history branch as no update will be performed
     # for any player.
@@ -449,6 +454,106 @@ class _CFRSolver(_CFRSolverBase):
       if self._regret_matching_plus:
         _apply_regret_matching_plus_reset(self._info_state_nodes)
       _update_current_policy(self._current_policy, self._info_state_nodes)
+
+  def get_avgpolicy_regret(self):
+    """Warning: It will cover the original regret"""
+    self.traverse(
+        self._root_node,
+        policies=None,
+        reach_probabilities=np.ones(self._game.num_players() + 1),
+        player=None)
+  
+  def traverse(self, state, policies, reach_probabilities, player):
+    """Increments the cumulative regrets and policy for `player`.
+
+    Args:
+      state: The initial game state to analyze from.
+      policies: A list of `num_players` callables taking as input an
+        `info_state_node` and returning a {action: prob} dictionary. For CFR,
+          this is simply returning the current policy, but this can be used in
+          the CFR-BR solver, to prevent code duplication. If None,
+          `_get_infostate_policy` is used.
+      reach_probabilities: The probability for each player of reaching `state`
+        as a numpy array [prob for player 0, for player 1,..., for chance].
+        `player_reach_probabilities[player]` will work in all cases.
+      player: The 0-indexed player to update the values for. If `None`, the
+        update for all players will be performed.
+
+    Returns:
+      The utility of `state` for all players, assuming all players follow the
+      current policy defined by `self.Policy`.
+    """
+    if state.is_terminal():
+      return np.asarray(state.returns())
+
+    if state.is_chance_node():
+      state_value = 0.0
+      for action, action_prob in state.chance_outcomes():
+        assert action_prob > 0
+        new_state = state.child(action)
+        new_reach_probabilities = reach_probabilities.copy()
+        new_reach_probabilities[-1] *= action_prob
+        state_value += action_prob * self.traverse(
+            new_state, policies, new_reach_probabilities, player)
+      return state_value
+
+    current_player = state.current_player()
+    info_state = state.information_state_string(current_player)
+
+    # No need to continue on this history branch as no update will be performed
+    # for any player.
+    # The value we return here is not used in practice. If the conditional
+    # statement is True, then the last taken action has probability 0 of
+    # occurring, so the returned value is not impacting the parent node value.
+    if all(reach_probabilities[:-1] == 0):
+      return np.zeros(self._num_players)
+
+    state_value = np.zeros(self._num_players)
+
+    # The utilities of the children states are computed recursively. As the
+    # regrets are added to the information state regrets for each state in that
+    # information state, the recursive call can only be made once per child
+    # state. Therefore, the utilities are cached.
+    children_utilities = {}
+
+    info_state_node = self._info_state_nodes[info_state]
+    info_state_policy = self._average_policy(state)
+    for action in state.legal_actions():
+      action_prob = info_state_policy.get(action, 0.)
+      new_state = state.child(action)
+      new_reach_probabilities = reach_probabilities.copy()
+      new_reach_probabilities[current_player] *= action_prob
+      child_utility = self.traverse(
+          new_state,
+          policies=policies,
+          reach_probabilities=new_reach_probabilities,
+          player=player)
+
+      state_value += action_prob * child_utility
+      children_utilities[action] = child_utility
+
+    # If we are performing alternating updates, and the current player is not
+    # the current_player, we skip the cumulative values update.
+    # If we are performing simultaneous updates, we do update the cumulative
+    # values.
+    simulatenous_updates = player is None
+    if not simulatenous_updates and current_player != player:
+      return state_value
+
+    reach_prob = reach_probabilities[current_player]
+    counterfactual_reach_prob = (
+        np.prod(reach_probabilities[:current_player]) *
+        np.prod(reach_probabilities[current_player + 1:]))
+    state_value_for_player = state_value[current_player]
+
+    for action, action_prob in info_state_policy.items():
+      cfr_regret = counterfactual_reach_prob * (
+          children_utilities[action][current_player] - state_value_for_player)
+
+      info_state_node.cumulative_regret[action] = cfr_regret # Cover!!!!
+
+    return state_value
+  
 
 
 class CFRPlusSolver(_CFRSolver):

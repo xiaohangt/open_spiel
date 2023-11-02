@@ -76,6 +76,7 @@ class _DCFRSolver(cfr._CFRSolver):  # pylint: disable=protected-access
 
     if state.is_chance_node():
       for action, unused_action_prob in state.chance_outcomes():
+        self.num_infostates_expanded += 1
         self._initialize_info_state_nodes(state.child(action))
       return
 
@@ -92,6 +93,7 @@ class _DCFRSolver(cfr._CFRSolver):  # pylint: disable=protected-access
       self._info_state_nodes[info_state] = info_state_node
 
     for action in info_state_node.legal_actions:
+      self.num_infostates_expanded += 1
       self._initialize_info_state_nodes(state.child(action))
 
   def _compute_counterfactual_regret_for_player(self, state, policies,
@@ -118,6 +120,7 @@ class _DCFRSolver(cfr._CFRSolver):  # pylint: disable=protected-access
       state_value = 0.0
       for action, action_prob in state.chance_outcomes():
         assert action_prob > 0
+        self.num_infostates_expanded += 1
         new_state = state.child(action)
         new_reach_probabilities = reach_probabilities.copy()
         new_reach_probabilities[-1] *= action_prob
@@ -150,6 +153,7 @@ class _DCFRSolver(cfr._CFRSolver):  # pylint: disable=protected-access
     else:
       info_state_policy = policies[current_player](info_state)
     for action in state.legal_actions():
+      self.num_infostates_expanded += 1
       action_prob = info_state_policy.get(action, 0.)
       new_state = state.child(action)
       new_reach_probabilities = reach_probabilities.copy()

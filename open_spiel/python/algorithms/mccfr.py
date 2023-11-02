@@ -69,6 +69,7 @@ class MCCFRSolverBase(object):
     self._infostates = {}  # infostate keys -> [regrets, avg strat]
     self._num_players = game.num_players()
     self.num_infostates_expanded = 0
+    self.counts = 0
 
   def _lookup_infostate_info(self, info_state_key, num_legal_actions):
     """Looks up an information set table for the given key.

@@ -21,6 +21,7 @@ from __future__ import print_function
 import numpy as np
 import open_spiel.python.algorithms.mccfr as mccfr
 import pyspiel
+import pdb
 
 
 class OutcomeSamplingSolver(mccfr.MCCFRSolverBase):
@@ -32,6 +33,7 @@ class OutcomeSamplingSolver(mccfr.MCCFRSolverBase):
     # updating player will sampling according to expl * uniform + (1 - expl) *
     # current_policy.
     self._expl = 0.6
+    self.legal_actions_dict = {}
 
     assert game.get_type().dynamics == pyspiel.GameType.Dynamics.SEQUENTIAL, (
         "MCCFR requires sequential games. If you're trying to run it " +
@@ -78,6 +80,8 @@ class OutcomeSamplingSolver(mccfr.MCCFRSolverBase):
     """
     if state.is_terminal():
       return state.player_return(update_player)
+    
+    self.num_infostates_expanded += 1
 
     if state.is_chance_node():
       outcomes, probs = zip(*state.chance_outcomes())
@@ -92,6 +96,7 @@ class OutcomeSamplingSolver(mccfr.MCCFRSolverBase):
     num_legal_actions = len(legal_actions)
     infostate_info = self._lookup_infostate_info(info_state_key,
                                                  num_legal_actions)
+    self.legal_actions_dict[info_state_key] = [cur_player, legal_actions]
     policy = self._regret_matching(infostate_info[mccfr.REGRET_INDEX],
                                    num_legal_actions)
     if cur_player == update_player:
