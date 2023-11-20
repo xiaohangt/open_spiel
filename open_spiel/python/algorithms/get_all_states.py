@@ -20,12 +20,19 @@ from __future__ import print_function
 
 import pyspiel
 
+depth_h = 0
+max_a = 0
 
 def _get_subgames_states(state, all_states, depth_limit, depth,
                          include_terminals, include_chance_states,
                          include_mean_field_states, to_string,
                          stop_if_encountered):
   """Extract non-chance states for a subgame into the all_states dict."""
+  global depth_h
+  global max_a
+
+  if depth_h < depth:
+    depth_h = depth
   if state.is_terminal():
     if include_terminals:
       # Include if not already present and then terminate recursion.
@@ -62,6 +69,8 @@ def _get_subgames_states(state, all_states, depth_limit, depth,
                          include_mean_field_states, to_string,
                          stop_if_encountered)
   else:
+    if max_a < len(state.legal_actions()):
+      max_a = len(state.legal_actions())
     for action in state.legal_actions():
       state_for_search = state.child(action)
       _get_subgames_states(state_for_search, all_states, depth_limit, depth + 1,
@@ -108,6 +117,8 @@ def get_all_states(game,
   # Get the root state.
   state = game.new_initial_state()
   all_states = dict()
+  depth_h = 0
+  max_a = 0
 
   # Then, do a recursive tree walk to fill up the map.
   _get_subgames_states(
@@ -125,3 +136,65 @@ def get_all_states(game,
     raise ValueError("GetSubgameStates returned 0 states!")
 
   return all_states
+
+
+def get_all_statistics(game,
+                   depth_limit=-1,
+                   include_terminals=True,
+                   include_chance_states=False,
+                   include_mean_field_states=False,
+                   to_string=lambda s: s.history_str(),
+                   stop_if_encountered=True):
+  """Gets all states in the game, indexed by their string representation.
+
+  For small games only! Useful for methods that solve the  games explicitly,
+  i.e. value iteration. Use this default implementation with caution as it does
+  a recursive tree walk of the game and could easily fill up memory for larger
+  games or games with long horizons.
+
+  Currently only works for sequential games.
+
+  Arguments:
+    game: The game to analyze, as returned by `load_game`.
+    depth_limit: How deeply to analyze the game tree. Negative means no limit, 0
+      means root-only, etc.
+    include_terminals: If True, include terminal states.
+    include_chance_states: If True, include chance node states.
+    include_mean_field_states: If True, include mean field node states.
+    to_string: The serialization function. We expect this to be
+      `lambda s: s.history_str()` as this enforces perfect recall, but for
+        historical reasons, using `str` is also supported, but the goal is to
+        remove this argument.
+    stop_if_encountered: if this is set, do not keep recursively adding states
+      if this state is already in the list. This allows support for games that
+      have cycles.
+
+  Returns:
+    A `dict` with `to_string(state)` keys and `pyspiel.State` values containing
+    all states encountered traversing the game tree up to the specified depth.
+  """
+  # Get the root state.
+  state = game.new_initial_state()
+  all_states = dict()
+  global depth_h
+  global max_a
+
+  depth_h = 0
+  max_a = 0
+
+  # Then, do a recursive tree walk to fill up the map.
+  _get_subgames_states(
+      state=state,
+      all_states=all_states,
+      depth_limit=depth_limit,
+      depth=0,
+      include_terminals=include_terminals,
+      include_chance_states=include_chance_states,
+      include_mean_field_states=include_mean_field_states,
+      to_string=to_string,
+      stop_if_encountered=stop_if_encountered)
+
+  if not all_states:
+    raise ValueError("GetSubgameStates returned 0 states!")
+
+  return all_states, depth_h, max_a
